@@ -1,0 +1,24 @@
+# =====================================================================
+# DATA CONTRACT: SPECIFICATION v1.0.0
+# Domain: Customer Ingestion & BI
+# =====================================================================
+dataset_name: customer_gold
+version: 1.0.0
+description: "Contrato de datos para validar ingresos de clientes antes del Lakehouse"
+
+fields:
+  customer_id:
+    type: string
+    required: true
+    pattern: "^usr-[0-9]+$"  # Regex estricto: ej. usr-12345
+  signup_timestamp:
+    type: string
+    required: true
+  subscription_plan:
+    type: string
+    required: true
+    allowed_values: ['free', 'premium', 'enterprise']
+  mrr_value:
+    type: float
+    required: true
+    min_value: 0.0
