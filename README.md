@@ -273,35 +273,7 @@ s guardados en: .../data/landing_processed.json
    ```text
    ✅ data/landing_processed.json cumple 100% con la especificación 'customer_gold'.
    ```
-4. **Conclusión del Acto 2:** La IA fue capaz de corregir los tipos y mapear planes inválidos gracias a la guía del contrato. El validador retorna `exit 0` y Git permite el despliegue automático a producción.
-
----
-
-### Acto 3: Evolución del Contrato y Bloqueo en Tiempo Real
-
-#### 📝 Narración
-> *"Los negocios evolucionan. Supongamos que agregamos un nuevo campo obligatorio en el contrato de datos, por ejemplo, el correo electrónico (`email`) del cliente. Veremos cómo nuestro validador rompe el flujo inmediatamente, obligándonos a actualizar el pipeline."*
-
-#### 💻 Acción en pantalla
-1. Edita el contrato de datos `contracts/customer_v1.yaml` para añadir un nuevo campo requerido. Puedes usar tu editor o reemplazar el contenido del archivo agregando estas líneas al final:
-   ```yaml
-     email:
-       type: string
-       required: true
-       pattern: "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
-   ```
-2. Corre el validador sobre los datos procesados actuales:
-   ```bash
-   python src/validator.py data/landing_processed.json
-   ```
-   *Salida esperada:*
-   ```text
-   🚨 INCUMPLIMIENTO DE CONTRATO DETECTADO EN: data/landing_processed.json
-      - Fila 0: Campo requerido 'email' ausente.
-      - Fila 1: Campo requerido 'email' ausente.
-      - ...
-   ```
-3. Pídele en vivo a Cursor/Copilot (o simula la corrección en `src/pipeline.py` agregando un correo dummy a partir de los datos crudos, por ejemplo `f"usr-{record['id']}@fintechpay.com"`) para demostrar cómo la IA adapta el código basándose en el error del validador y el nuevo YAML.
+4. **Conclusión del Acto 3:** La IA fue capaz de corregir los tipos y mapear planes inválidos gracias a la guía del contrato. El validador retorna `exit 0` y Git permite el despliegue automático a producción.
 
 ---
 
