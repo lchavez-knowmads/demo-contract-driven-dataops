@@ -1,0 +1,39 @@
+name: Spec-Driven DataOps Governance
+
+on:
+  pull_request:
+    branches: [ main ]
+  push:
+    branches: [ main ]
+
+jobs:
+  dataops-audit:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout de código
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyyaml
+
+      - name: Ejecutar pipeline (si existe)
+        run: |
+          if [ -f src/pipeline.py ]; then
+            echo "🚀 Ejecutando src/pipeline.py..."
+            python src/pipeline.py
+          else
+            echo "⚠️ src/pipeline.py no encontrado. Usando src/pipeline_ai_governed.py como fallback..."
+            python src/pipeline_ai_governed.py
+          fi
+
+      - name: Validar salida contra el contrato de datos
+        run: |
+          python src/validator.py data/landing_processed.json
