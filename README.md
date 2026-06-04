@@ -13,22 +13,156 @@ Al finalizar esta demostración, los alumnos comprenderán:
 
 ---
 
+## 🗺️ Diagrama de Arquitectura y Flujo
+
+El siguiente diagrama de Mermaid muestra cómo fluye la especificación del contrato de datos a través de las fases de desarrollo (guiadas por IA), generación del pipeline y validación defensiva en el CI/CD antes de permitir el merge a producción:
+
+```mermaid
+graph TD
+    subgraph Spec ["Fuentes de Especificación (Source of Truth)"]
+        Contract["Data Contract: customer_v1.yaml"]
+    end
+
+    subgraph Dev ["Entorno de Desarrollo e IA"]
+        RawData[("data/landing_raw.json")]
+        AI_Broken["AI sin contexto (pipeline_ai_broken.py)"]
+        AI_Governed["AI con contexto (pipeline_ai_governed.py)"]
+        Pipeline["src/pipeline.py"]
+        ProcessedData[("data/landing_processed.json")]
+    end
+
+    subgraph CI ["Guardián de Git CI/CD (GitHub Actions)"]
+        Workflow["dataops-governance.yml"]
+        Validator["src/validator.py"]
+        MergeApproved{{"Merge a main (Aprobado)"}}
+        MergeBlocked{{"Merge Bloqueado (Fallo)"}}
+    end
+
+    %% Relaciones de especificación
+    Contract -.->|Contexto para| AI_Governed
+    Contract -.->|Reglas de Validación| Validator
+
+    %% Flujo de ejecución
+    RawData --> AI_Broken
+    RawData --> AI_Governed
+    AI_Broken -->|Genera código sin reglas| Pipeline
+    AI_Governed -->|Genera código defensivo| Pipeline
+    
+    Pipeline -->|Produce| ProcessedData
+    ProcessedData --> Validator
+
+    %% Acciones de CI/CD
+    Workflow -->|Ejecuta| Pipeline
+    Workflow -->|Ejecuta| Validator
+    Validator -->|Cumple Contrato (Exit 0)| MergeApproved
+    Validator -->|Viola Contrato (Exit 1)| MergeBlocked
+    
+    style Contract fill:#e1f5fe,stroke:#0288d1,stroke-width:2px;
+    style MergeApproved fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px;
+    style MergeBlocked fill:#ffebee,stroke:#c62828,stroke-width:2px;
+    style ProcessedData fill:#fff8e1,stroke:#f57f17,stroke-width:1px;
+    style RawData fill:#fff8e1,stroke:#f57f17,stroke-width:1px;
+```
+
+---
+
+## 🔄 Diagramas de Secuencia: Flujo de Trabajo (Caos vs. Gobierno)
+
+Para comprender mejor cómo interactúan el desarrollador (asistido por IA), GitHub, el CI/CD, el Dev Senior y el Lakehouse, a continuación se presentan los diagramas de secuencia para ambos escenarios.
+
+### Escenario A: Flujo Tradicional sin Gobierno (El Caos)
+En este flujo, al no haber una validación automatizada contra un contrato de datos en el CI/CD, el código generado por IA con errores silenciosos de lógica es aprobado y llega a producción, rompiendo los tableros analíticos.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Dev as Desarrollador
+    participant AI as Asistente de IA (Claude/Gemini/Copilot)
+    participant Git as GitHub (PR)
+    participant CI as CI/CD Runner
+    actor Senior as Dev Senior (Reviewer)
+    participant Prod as Producción / Lakehouse
+
+    Dev->>AI: "Escribe un pipeline para procesar clientes"
+    Note over AI: Carece de especificación de negocio (Contrato)
+    AI-->>Dev: Retorna pipeline_ai_broken.py (Código sintácticamente correcto)
+    Dev->>Git: Push de rama corta y abre Pull Request (PR)
+    Git->>CI: Dispara CI/CD
+    Note over CI: Pruebas unitarias básicas de sintaxis
+    CI-->>Git: CI pasa en verde (Test exitoso)
+    Git->>Senior: Notifica PR listo para revisión
+    Senior->>Git: Revisa código visualmente (Se ve limpio y lógico) -> Aprueba PR
+    Git->>Prod: Merge a main y despliega pipeline
+    Prod->>Prod: Ejecuta pipeline sobre datos crudos de producción
+    Note over Prod: pipeline.py genera datos con MRR negativo y planes inválidos
+    Prod-->>Prod: 🚨 ERROR: Tableros de BI e IA se rompen por datos corruptos
+```
+
+---
+
+### Escenario B: Flujo Spec-Driven con Gobierno (DataOps Seguro)
+En este flujo, el Contrato de Datos es consumido por la IA para escribir código defensivo. Si el desarrollador o la IA intentan subir un pipeline incorrecto, el CI/CD ejecuta la validación dinámica del validador y bloquea automáticamente el Pull Request. Cuando se sube la solución conforme al contrato, el CI/CD aprueba y el Dev Senior puede realizar el merge con total tranquilidad.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Dev as Desarrollador
+    participant YAML as Contrato de Datos (customer_v1.yaml)
+    participant AI as Asistente de IA (Claude/Gemini/Copilot)
+    participant Git as GitHub (PR)
+    participant CI as CI/CD Runner (Validador)
+    actor Senior as Dev Senior (Reviewer)
+    participant Prod as Producción / Lakehouse
+
+    Dev->>AI: "Escribe pipeline usando este Contrato de Datos"
+    YAML->>AI: Provee esquema, tipos, regex y límites permitidos
+    Note over AI: Programa defensivamente usando las reglas del Contrato
+    AI-->>Dev: Retorna pipeline_ai_governed.py (Código con normalización)
+    
+    rect rgb(240, 248, 255)
+        Note over Dev, CI: Subescenario A1: Intento de subir código roto
+        Dev->>Git: Push de rama corta con pipeline corrupto
+        Git->>CI: Dispara CI/CD
+        CI->>CI: Corre pipeline y valida datos con validator.py
+        Note over CI: validator.py detecta violaciones al Contrato de Datos
+        CI-->>Git: CI falla en rojo (Exit 1)
+        Note over Git: Botón de Merge queda Bloqueado automáticamente
+    end
+
+    rect rgb(232, 245, 233)
+        Note over Dev, Prod: Subescenario A2: Subida de código gobernado
+        Dev->>Git: Push con pipeline gobernado (corregido)
+        Git->>CI: Dispara CI/CD
+        CI->>CI: Corre pipeline y valida datos con validator.py
+        Note over CI: Los datos cumplen al 100% con customer_v1.yaml
+        CI-->>Git: CI pasa en verde (Exit 0)
+        Note over Git: Habilita el botón de Merge
+        Git->>Senior: Notifica PR listo para revisión
+        Note over Senior: Revisa con la tranquilidad de que el esquema está blindado por el CI
+        Senior->>Git: Revisa lógica del código -> Aprueba PR
+        Git->>Prod: Merge a main y despliega pipeline
+        Prod->>Prod: Ejecuta pipeline de forma segura
+        Prod-->>Prod: ✅ Producción estable, datos correctos en Lakehouse
+    end
+```
+
+---
+
 ## 🛠️ Estructura del Sandbox
 
-El sandbox en `ejemplos/repo` simula un repositorio de producción real:
+El sandbox del repositorio simula un entorno de producción real:
 ```markdown
-ejemplos/repo/
-├── .github/workflows/
-│   └── dataops-governance.yml   # Guardián del PR en GitHub Actions
-├── contracts/
-│   └── customer_v1.yaml         # El Contrato de Datos (la fuente de verdad)
-├── data/
-│   ├── landing_raw.json         # Datos crudos de origen (ingesta)
-│   └── landing_processed.json   # Datos procesados por el pipeline (output)
-└── src/
-    ├── validator.py             # Validador oficial del contrato
-    ├── pipeline_ai_broken.py    # Simulación: Pipeline generado por IA sin contexto
-    └── pipeline_ai_governed.py  # Simulación: Pipeline generado por IA con contexto
+.github/workflows/
+└── dataops-governance.yml   # Guardián del PR en GitHub Actions
+contracts/
+└── customer_v1.yaml         # El Contrato de Datos (la fuente de verdad)
+data/
+├── landing_raw.json         # Datos crudos de origen (ingesta)
+└── landing_processed.json   # Datos procesados por el pipeline (output)
+src/
+├── validator.py             # Validador oficial del contrato
+├── pipeline_ai_broken.py    # Simulación: Pipeline generado por IA sin contexto
+└── pipeline_ai_governed.py  # Simulación: Pipeline generado por IA con contexto
 ```
 
 ---
@@ -39,10 +173,7 @@ ejemplos/repo/
    ```bash
    pip install pyyaml
    ```
-2. Posiciónate en la terminal dentro de la carpeta del repositorio demo:
-   ```bash
-   cd ejemplos/repo
-   ```
+2. Posiciónate en la terminal en la carpeta raíz de este repositorio.
 
 ---
 
@@ -139,7 +270,7 @@ ejemplos/repo/
       - Fila 1: Campo requerido 'email' ausente.
       - ...
    ```
-3. Pídele en vivo a Cursor/Copilot (o simula la corrección en `src/pipeline.py` agregando un correo dummy a partir de los datos crudos, por ejemplo `f"usr-{record['id']}@fintechpay.com"`) para demostrar cómo la IA adapta el código basándose en el error del validador y el nuevo YAML.
+3. Pídele en vivo a Claude/Gemini/Copilot (o simula la corrección en `src/pipeline.py` agregando un correo dummy a partir de los datos crudos, por ejemplo `f"usr-{record['id']}@fintechpay.com"`) para demostrar cómo la IA adapta el código basándose en el error del validador y el nuevo YAML.
 
 ---
 
