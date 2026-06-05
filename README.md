@@ -303,10 +303,37 @@ El pipeline de la IA era sintácticamente perfecto pero violaba reglas de negoci
 
 #### 💻 Paso 1 — Corrección local con el pipeline gobernado
 
-1. Reemplaza el pipeline roto con el gobernado (en la misma rama `feat/ai-pipeline`):
+1. podemos pedirle a la IA que cree el nuevo pipeline pero considerando el contexto complete con el contrato 
+
+o podemos simularlo reemplazando el pipeline roto con el gobernado (en la misma rama `feat/ai-pipeline`):
    ```bash
    cp src/pipeline_ai_governed.py src/pipeline.py
    ```
+
+para solicitarlo a la IA podriamos pedirle  que cree el file con el siguente prompt 
+   
+```yaml
+"Necesito un script en Python (src/pipeline.py) que procese datos crudos de clientes desde data/landing_raw.json y genere data/landing_processed.json.
+
+El output DEBE cumplir estrictamente con el siguiente Contrato de Datos (contracts/customer_v1.yaml):
+   - Los datos crudos tienen los campos: id (int), signup (string), plan (string) y mrr (float). 
+   - Algunos registros pueden tener planes inválidos (como 'basic') o MRR negativos.
+Programa de forma DEFENSIVA: si un plan no está en los valores permitidos, mapéalo a 'free'. Si el MRR es negativo, ajústalo a 0.0. Imprime advertencias cuando normalices valores."
+```
+
+### ¿Por qué funciona la diferencia?
+
+| Aspecto | Acto 1 (sin contrato) | Acto 2 (con contrato) |
+|---|---|---|
+| **Campos de salida** | Solo los nombra | Define tipos, regex y restricciones |
+| **Valores permitidos** | No los menciona | `['free', 'premium', 'enterprise']` explícito |
+| **Rangos numéricos** | No dice nada | `min_value: 0.0` explícito |
+| **Manejo de errores** | Inexistente | Instrucciones de mapeo defensivo |
+| **Fuente de verdad** | La intuición de la IA | El YAML del contrato |
+
+El punto didáctico clave es: **el mismo modelo de IA produce código radicalmente diferente dependiendo del contexto que le das**. El contrato YAML actúa como un "system prompt de negocio" que ancla a la IA a las reglas reales.
+
+---
 
 2. Ejecuta el pipeline gobernado localmente:
    ```bash
